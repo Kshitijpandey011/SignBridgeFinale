@@ -1,0 +1,24 @@
+{
+  "mode": "ISL",
+  "feature_dim": 180,
+  "accuracy": 0.9984,
+  "macro_f1": 0.9984,
+  "timestamp": "2026-10-04 18:49:44",
+  "classes": [
+    "BAD",
+    "FOOD",
+    "GOOD",
+    "HELLO",
+    "HELP",
+    "HOME",
+    "NAMASTE",
+    "NO",
+    "PLEASE",
+    "SCHOOL",
+    "SORRY",
+    "THANK_YOU",
+    "WATER",
+    "YES"
+  ],
+  "samples_trained": 3080
+}

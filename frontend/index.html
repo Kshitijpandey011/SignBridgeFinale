@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGNBRIDGE — Unified ASL + ISL Sign Recognition & 3D Assistant</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+  <!-- Vendor Local Three.js -->
+  <script src="/static/js/three.min.js"></script>
+  <!-- MediaPipe JS for Local Inference -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Header & Status Bar -->
+    <header class="header-bar">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <span>🤟</span> SIGNBRIDGE
+        </div>
+        <div class="brand-tagline">
+          Unified ASL & ISL Recognition · Translation · 3D Avatar
+        </div>
+      </div>
+
+      <!-- Mode Selector -> Now Automatic Language Status -->
+      <div class="mode-selector-container" id="language-status-container" title="Sign language is automatically detected">
+        Language: <span id="detected-language-label" style="font-weight: 800; color: var(--primary);">Detecting...</span>
+      </div>
+
+      <!-- Live Status Indicators -->
+      <div class="status-cluster">
+        <div id="status-camera" class="pill-badge" title="Webcam Status">
+          <span class="dot red"></span> Camera: Off
+        </div>
+        <div id="status-asl" class="pill-badge" title="ASL Classifier Status">
+          <span class="dot yellow"></span> ASL Model
+        </div>
+        <div id="status-isl" class="pill-badge" title="ISL Classifier Status">
+          <span class="dot yellow"></span> ISL Model
+        </div>
+        <div id="status-ollama" class="pill-badge" title="Local Ollama AI Status">
+          <span class="dot yellow"></span> Ollama
+        </div>
+        <div id="status-tts" class="pill-badge" title="Text-to-Speech Engine">
+          <span class="dot green"></span> TTS Ready
+        </div>
+        <div id="status-avatar" class="pill-badge" title="3D Signing Avatar Engine">
+          <span class="dot green"></span> 3D Ready
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Middle Dashboard Grid -->
+    <main class="dashboard-main-grid">
+      
+      <!-- Left Column: Camera Feed & Real-Time Recognition -->
+      <section class="glass-panel camera-panel">
+        <div class="video-container" id="video-wrapper">
+          <video id="webcam-video" autoplay playsinline muted></video>
+          <canvas id="landmark-canvas"></canvas>
+
+          <div id="camera-offline-msg" class="camera-offline-placeholder">
+            <span style="font-size: 2.2rem;">📹</span>
+            <p style="font-weight: 600; color: var(--text-main);">Camera initializing...</p>
+          </div>
+
+          <!-- Top HUD -->
+          <div class="camera-hud-top">
+            <div id="live-badge" class="live-indicator" style="display: none;">
+              <span class="dot green"></span> CAMERA ACTIVE
+            </div>
+            <div id="fps-counter" class="hud-fps" style="display: none;">FPS: --</div>
+          </div>
+
+          <!-- Performance Debug Panel -->
+          <div id="perf-debug-panel" style="position: absolute; top: 50px; left: 10px; background: rgba(0,0,0,0.7); color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 4px; z-index: 1000;">
+             <div>Camera FPS: <span id="perf-cam-fps">0</span></div>
+             <div>Frame Age: <span id="perf-frame-age">0</span> ms</div>
+             <div>MediaPipe: <span id="perf-mp-time">0</span> ms</div>
+             <div>Render: <span id="perf-render-time">0</span> ms</div>
+             <div>Recognition: <span id="perf-rec-rate">0</span>/sec</div>
+             <div>Pending WS: <span id="perf-pending">0</span></div>
+          </div>
+
+          <!-- Bottom HUD: Detected Sign and Confidence -->
+          <div class="camera-hud-bottom">
+            <div class="detected-sign-hud">
+              <div class="sign-title">Live Detection</div>
+              <div id="hud-sign-text" class="sign-value">--</div>
+              <div class="confidence-bar-container">
+                <div id="hud-confidence-bar" class="confidence-bar-fill"></div>
+              </div>
+            </div>
+            <div id="vision-assist-btn" class="pill-badge" style="background: rgba(255, 255, 255, 0.95); box-shadow: var(--shadow-sm);">
+              Ollama Vision: <span style="color: var(--text-muted)">● INITIALIZING</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Camera Control Bar -->
+        <div class="camera-controls-bar">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="camera-toggle-btn" class="btn btn-primary btn-sm">
+              Start Camera
+            </button>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; cursor: pointer; color: var(--text-muted);">
+              <input type="checkbox" id="draw-landmarks-toggle" checked>
+              Landmark Skeleton
+            </label>
+          </div>
+
+
+          <button id="vocab-modal-btn" class="btn btn-outline btn-sm" title="View supported signs for current mode">
+            📖 Vocabulary
+          </button>
+        </div>
+      </section>
+
+      <!-- Right Column: Recognition Output & Indian Language Translation -->
+      <section class="translation-panel">
+        
+        <!-- English Recognition Output Card -->
+        <div class="glass-panel english-card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🔤</span> Recognized Text (English)
+            </div>
+            <span id="new-word-alert" class="pill-badge" style="opacity: 0; transition: opacity 0.3s;">
+              + New Sign
+            </span>
+          </div>
+
+          <textarea id="english-output" class="output-textarea" placeholder="Recognized signs will form a sentence here, or you can type here directly..." rows="2"></textarea>
+
+          <div class="card-action-bar">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button id="speak-english-btn" class="btn btn-primary btn-sm" title="Speak English text out loud">
+                🔊 Speak English
+              </button>
+              <button id="refine-sentence-btn" class="btn btn-outline btn-sm" title="Use local Ollama AI to turn sign glosses into a fluent grammatical sentence">
+                ✨ Ollama Refine
+              </button>
+            </div>
+            <div class="action-group-right">
+              <button id="delete-word-btn" class="btn btn-outline btn-sm" title="Delete last word in sentence">
+                ⌫ Backspace
+              </button>
+              <button id="clear-sentence-btn" class="btn btn-danger btn-sm" title="Clear all text">
+                ✕ Clear
+              </button>
+              <button id="send-to-avatar-btn" class="btn btn-success btn-sm" title="Send recognized sentence directly to 3D avatar to sign">
+                ➔ Sign On Avatar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Indian Language Translation Card -->
+        <div class="glass-panel indian-lang-card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🇮🇳</span> Indian Language Translation
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="language-select" title="Select Indian Target Language">
+                <option value="hi" selected>Hindi (हिन्दी)</option>
+                <option value="ta">Tamil (தமிழ்)</option>
+                <option value="te">Telugu (తెలుగు)</option>
+                <option value="kn">Kannada (ಕನ್ನಡ)</option>
+                <option value="ml">Malayalam (മലയാളം)</option>
+                <option value="mr">Marathi (मराठी)</option>
+                <option value="bn">Bengali (বাংলা)</option>
+                <option value="gu">Gujarati (ગુજરાતી)</option>
+                <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
+                <option value="ur">Urdu (اردو)</option>
+                <option value="or">Odia (ଓଡ଼ିଆ)</option>
+                <option value="as">Assamese (অসমীয়া)</option>
+                <option value="en">English</option>
+              </select>
+              <span id="trans-source-tag" class="pill-badge" style="font-size: 0.68rem;">Ready</span>
+            </div>
+          </div>
+
+          <textarea id="translation-output" class="output-textarea translated" placeholder="Translated text will appear here automatically..." readonly rows="2"></textarea>
+
+          <div class="card-action-bar">
+            <button id="speak-translation-btn" class="btn btn-primary btn-sm" title="Speak translated text in target language">
+              🔊 Speak Translation
+            </button>
+            <div class="action-group-right">
+              <button id="retranslate-btn" class="btn btn-outline btn-sm" title="Trigger re-translation">
+                🔄 Re-translate
+              </button>
+              <button id="copy-translation-btn" class="btn btn-outline btn-sm" title="Copy translated text to clipboard">
+                📋 Copy
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- Bottom Pane: 3D Signing Avatar Viewport & Animation Deck -->
+    <footer class="avatar-deck-panel">
+      
+      <!-- 3D Avatar Canvas Viewport -->
+      <div class="avatar-viewport-container">
+        <canvas id="avatar-canvas"></canvas>
+        <div class="avatar-overlay-badge">3D SIGNING AVATAR</div>
+        <div class="avatar-status-pill">
+          <span id="avatar-sign-now">IDLE (Awaiting Text)</span>
+          <button id="avatar-reset-cam-btn" class="btn btn-outline btn-sm" style="padding: 2px 6px; font-size: 0.68rem;" title="Reset Camera View">⟲ Reset View</button>
+        </div>
+      </div>
+
+      <!-- Avatar Controls & Input Deck -->
+      <div class="avatar-controls-area">
+        <div id="missing-sign-notice" class="notice-banner"></div>
+
+        <!-- Text Input for Avatar -->
+        <div class="avatar-input-row">
+          <input type="text" id="avatar-text-input" class="avatar-input-box" placeholder="Enter words or full sentence for avatar to sign (e.g., 'HELLO THANK YOU WATER')..." value="HELLO THANK YOU">
+          <button id="avatar-sign-submit-btn" class="btn btn-primary" style="padding: 10px 20px;">
+            🤟 MAKE AVATAR SIGN
+          </button>
+        </div>
+
+        <!-- Playback & Speed Controls -->
+        <div class="playback-buttons-row">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="avatar-play-btn" class="btn btn-outline btn-sm">▶ Play</button>
+            <button id="avatar-pause-btn" class="btn btn-outline btn-sm">⏸ Pause</button>
+            <button id="avatar-stop-btn" class="btn btn-danger btn-sm">⏹ Stop</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; font-size: 0.8rem; color: var(--text-muted);">
+            <span>Speed:</span>
+            <select id="avatar-speed-select" style="padding: 4px 8px; font-size: 0.8rem;">
+              <option value="0.75">0.75x</option>
+              <option value="1.0" selected>1.0x (Normal)</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Quick Preset Sign Pills for One-Click Testing -->
+        <div class="preset-pills-row">
+          <span style="font-size: 0.72rem; color: var(--text-dim); margin-right: 4px;">Quick Signs:</span>
+          <span class="preset-pill" data-text="HELLO">HELLO</span>
+          <span class="preset-pill" data-text="THANK YOU">THANK YOU</span>
+          <span class="preset-pill" data-text="YES">YES</span>
+          <span class="preset-pill" data-text="NO">NO</span>
+          <span class="preset-pill" data-text="PLEASE">PLEASE</span>
+          <span class="preset-pill" data-text="SORRY">SORRY</span>
+          <span class="preset-pill" data-text="HELP">HELP</span>
+          <span class="preset-pill" data-text="WATER">WATER</span>
+          <span class="preset-pill" data-text="FOOD">FOOD</span>
+          <span class="preset-pill" data-text="HOME">HOME</span>
+          <span class="preset-pill" data-text="SCHOOL">SCHOOL</span>
+          <span class="preset-pill" data-text="GOOD">GOOD</span>
+          <span class="preset-pill" data-text="BAD">BAD</span>
+          <span class="preset-pill" data-text="NAMASTE">NAMASTE</span>
+          <span class="preset-pill" data-text="I NEED WATER">I NEED WATER</span>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Vocabulary Modal -->
+  <dialog id="vocab-dialog" style="background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; max-width: 600px; width: 90%; margin: auto; backdrop-filter: blur(20px);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 id="vocab-dialog-title" style="font-size: 1.2rem; color: var(--accent-cyan);">Supported Signs</h3>
+      <button id="close-vocab-dialog" class="btn btn-outline btn-sm">✕ Close</button>
+    </div>
+    <div id="vocab-list-content" style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </dialog>
+
+  <!-- Application JS Modules -->
+  <script src="/static/js/status_manager.js"></script>
+  <script src="/static/js/avatar/CoordinateAdapter.js"></script>
+  <script src="/static/js/avatar/AvatarSkeleton.js"></script>
+  <script src="/static/js/avatar/AnimationController.js"></script>
+  <script src="/static/js/avatar/AvatarEngine.js"></script>
+  <script src="/static/js/ContinuousVisionAnalyzer.js"></script>
+  <script src="/static/js/camera.js"></script>
+  <script src="/static/js/translation.js"></script>
+  <script src="/static/js/tts.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

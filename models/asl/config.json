@@ -1,0 +1,25 @@
+{
+  "mode": "ASL",
+  "feature_dim": 180,
+  "accuracy": 0.9955,
+  "macro_f1": 0.9955,
+  "timestamp": "2026-10-04 18:49:43",
+  "classes": [
+    "BAD",
+    "EAT",
+    "GOOD",
+    "HELLO",
+    "HELP",
+    "I_LOVE_YOU",
+    "MORE",
+    "NO",
+    "PEACE",
+    "PLEASE",
+    "SORRY",
+    "STOP",
+    "THANK_YOU",
+    "WATER",
+    "YES"
+  ],
+  "samples_trained": 3300
+}
